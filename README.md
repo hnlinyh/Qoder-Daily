@@ -214,3 +214,5 @@ Qoder-Daily/
 <div align="center">
   <sub>🧭 如果这个脚本帮到你，点个 <b>Star</b> 支持一下，或者到 <a href="#-支持与投喂">支持与投喂</a> 请我喝杯咖啡 ✨</sub>
 </div>
+
+<!-- fork: workflow reindex trigger -->
