@@ -1,0 +1,84 @@
+name: Debug Headers
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  account1:
+    name: Debug Headers · github2
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      TZ: Asia/Shanghai
+      QODER_GLOBAL_TOKENS: ${{ secrets.QODER_GLOBAL_TOKENS }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install -r requirements.txt
+      - name: Dump header fingerprints
+        run: |
+          python - <<'PY'
+          import hashlib, os
+          import qoder_daily as q
+          accts = q.parse_accounts(os.environ.get("QODER_GLOBAL_TOKENS", ""), "global")
+          print("job=account1 accounts=%d" % len(accts))
+          for idx, a in enumerate(accts, 1):
+              h, note = q.risky_sash_headers(a, a.get("uid", ""))
+              print("account %d note=%s uid=%s" % (idx, a.get("note"), a.get("uid")))
+              for k in sorted(h):
+                  v = str(h[k])
+                  low = k.lower()
+                  if low == "authorization":
+                      print("  %s: %s" % (k, q.mask(v)))
+                  elif low in ("cosy-machineid", "cosy-machinehostname", "cosy-machinetoken", "cosy-machinecode", "cosy-machinetype"):
+                      print("  %s: sha256=%s len=%d" % (k, hashlib.sha256(v.encode()).hexdigest()[:16], len(v)))
+                  else:
+                      print("  %s: %s" % (k, v))
+              print("  risk_note=%s" % note)
+          if os.path.exists("qoder_machine_id"):
+              val = open("qoder_machine_id").read().strip()
+              print("machine_id_file: sha256=%s len=%d" % (hashlib.sha256(val.encode()).hexdigest()[:16], len(val)))
+          PY
+
+  account2:
+    name: Debug Headers · yakumo
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      TZ: Asia/Shanghai
+      QODER_GLOBAL_TOKENS: ${{ secrets.QODER_GLOBAL_TOKENS_EXTRA }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install -r requirements.txt
+      - name: Dump header fingerprints
+        run: |
+          python - <<'PY'
+          import hashlib, os
+          import qoder_daily as q
+          accts = q.parse_accounts(os.environ.get("QODER_GLOBAL_TOKENS", ""), "global")
+          print("job=account2 accounts=%d" % len(accts))
+          for idx, a in enumerate(accts, 1):
+              h, note = q.risky_sash_headers(a, a.get("uid", ""))
+              print("account %d note=%s uid=%s" % (idx, a.get("note"), a.get("uid")))
+              for k in sorted(h):
+                  v = str(h[k])
+                  low = k.lower()
+                  if low == "authorization":
+                      print("  %s: %s" % (k, q.mask(v)))
+                  elif low in ("cosy-machineid", "cosy-machinehostname", "cosy-machinetoken", "cosy-machinecode", "cosy-machinetype"):
+                      print("  %s: sha256=%s len=%d" % (k, hashlib.sha256(v.encode()).hexdigest()[:16], len(v)))
+                  else:
+                      print("  %s: %s" % (k, v))
+              print("  risk_note=%s" % note)
+          if os.path.exists("qoder_machine_id"):
+              val = open("qoder_machine_id").read().strip()
+              print("machine_id_file: sha256=%s len=%d" % (hashlib.sha256(val.encode()).hexdigest()[:16], len(val)))
+          PY
