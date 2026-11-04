@@ -179,3 +179,86 @@ jobs:
         with:
           path: .qoder-cache/state.enc
           key: qoder-state-v3-account2-${{ github.run_id }}-${{ github.run_attempt }}
+
+  account3:
+    name: Qoder Daily · yinhao
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      TZ: Asia/Shanghai
+      QODER_CACHE_KEY: ${{ secrets.QODER_CACHE_KEY }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install deps
+        run: pip install -r requirements.txt
+
+      - name: Warn missing cache encryption key
+        if: ${{ env.QODER_CACHE_KEY == '' }}
+        run: |
+          echo "::warning::未设置 QODER_CACHE_KEY，本次将跳过 token 状态持久化；轮换后的 refresh_token 可能无法在下次运行恢复。"
+
+      - name: Restore encrypted token state
+        if: ${{ env.QODER_CACHE_KEY != '' }}
+        uses: actions/cache/restore@v4
+        with:
+          path: .qoder-cache/state.enc
+          key: qoder-state-v3-account3-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: qoder-state-v3-account3-
+
+      - name: Decrypt token state
+        if: ${{ env.QODER_CACHE_KEY != '' && hashFiles('.qoder-cache/state.enc') != '' }}
+        run: |
+          openssl enc -d -aes-256-cbc -pbkdf2 -salt -pass env:QODER_CACHE_KEY -in .qoder-cache/state.enc -out "$RUNNER_TEMP/qoder-state.tar"
+          tar -xf "$RUNNER_TEMP/qoder-state.tar" -C .
+          rm -f "$RUNNER_TEMP/qoder-state.tar"
+
+      - name: Run Qoder Daily
+        env:
+          QODER_TOKENS: ${{ secrets.QODER_TOKENS }}
+          QODER_GLOBAL_TOKENS: ${{ secrets.QODER_GLOBAL_TOKENS_EXTRA2 }}
+          QODER_MACHINE_TOKEN: ${{ secrets.QODER_MACHINE_TOKEN }}
+          QODER_MACHINE_CODE: ${{ secrets.QODER_MACHINE_CODE }}
+          QODER_MACHINE_TYPE: ${{ secrets.QODER_MACHINE_TYPE }}
+          QODERCN_RUNTIME_INFO: ${{ secrets.QODERCN_RUNTIME_INFO }}
+          QODER_RUNTIME_INFO: ${{ secrets.QODER_RUNTIME_INFO }}
+          QODER_UMID_PATH: ${{ secrets.QODER_UMID_PATH }}
+          QODER_UMID_NO_INSTALL: ${{ secrets.QODER_UMID_NO_INSTALL }}
+          PUSHPLUS_TOKEN: ${{ secrets.PUSHPLUS_TOKEN }}
+          BARK_URL: ${{ secrets.BARK_URL }}
+          WECOM_WEBHOOK: ${{ secrets.WECOM_WEBHOOK }}
+          DINGTALK_WEBHOOK: ${{ secrets.DINGTALK_WEBHOOK }}
+          DINGTALK_SECRET: ${{ secrets.DINGTALK_SECRET }}
+          QODER_WINDOW_RETRY: "1"
+          QODER_WINDOW_RETRY_MAX: "16"
+          QODER_WINDOW_RETRY_GAP: "90"
+        run: python qoder_daily.py
+
+      # Refresh may succeed before a later request fails; retain rotated tokens.
+      - name: Encrypt token state
+        if: ${{ always() && env.QODER_CACHE_KEY != '' }}
+        run: |
+          mkdir -p .qoder-cache
+          files=""
+          for f in qoder_tokens.json qoder_machine_id; do
+            if [ -f "$f" ]; then files="$files $f"; fi
+          done
+          if [ -n "$files" ]; then
+            tar -cf "$RUNNER_TEMP/qoder-state.tar" $files
+            openssl enc -aes-256-cbc -pbkdf2 -salt -pass env:QODER_CACHE_KEY -in "$RUNNER_TEMP/qoder-state.tar" -out .qoder-cache/state.enc
+            rm -f "$RUNNER_TEMP/qoder-state.tar"
+          fi
+
+      - name: Save encrypted token state
+        if: ${{ always() && env.QODER_CACHE_KEY != '' && hashFiles('.qoder-cache/state.enc') != '' }}
+        uses: actions/cache/save@v4
+        with:
+          path: .qoder-cache/state.enc
+          key: qoder-state-v3-account3-${{ github.run_id }}-${{ github.run_attempt }}
+
